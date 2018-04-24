@@ -1,0 +1,110 @@
+'''
+Created on Apr 18, 2018
+
+@author: raysm
+'''
+
+import os
+import wx
+from filebrowsebutton import DirBrowseButton
+from filebrowsebutton import FileBrowseButtonWithHistory
+
+class FindFile(wx.Frame):
+    
+    def __init__(self, *args, **kwargs):
+        super(FindFile, self).__init__(*args, **kwargs) 
+            
+        self.InitUI()
+
+
+    def OnDirChange(self, e):
+        dir_name = self.dirNameBrowse.GetValue()
+        self.dirNameBrowse.startDirectory = dir_name
+        self.fileNameBrowse.startDirectory = dir_name
+        self.fileNameBrowse.SetValue("", callBack=0)
+        print("OnDirChange: dir_name = %s %s" % (dir_name, self.dirNameBrowse.GetValue()))
+
+
+    def OnFileChange(self, e):
+        file_path = self.fileNameBrowse.GetValue()
+        if not os.path.isabs(file_path):
+            print("file_path %s is not absolute - disregard" % file_path)
+            return
+        
+        dir_name = os.path.dirname(file_path)
+        file_name = os.path.basename(file_path)
+        self.dirNameBrowse.startDirectory = dir_name
+        self.dirNameBrowse.SetValue(dir_name, callBack=0)
+        self.fileNameBrowse.startDirectory = dir_name
+        self.fileNameBrowse.SetValue(file_name, callBack=0)
+        print("OnFileChange: dir_name = %s %s" % (dir_name, self.dirNameBrowse.GetValue()))
+        
+    def InitUI(self):    
+
+        menubar = wx.MenuBar()
+        fileMenu = wx.Menu()
+        fitem = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
+        menubar.Append(fileMenu, '&File')
+        self.SetMenuBar(menubar)
+        
+        self.Bind(wx.EVT_MENU, self.OnQuit, fitem)
+
+        self.SetSize((600, 300))
+        self.SetTitle('FindFile')
+        panel = wx.Panel(self)
+        
+        file_dir_box = wx.BoxSizer(wx.VERTICAL)
+        panel.SetSizer(file_dir_box)
+        
+        dir_name_box = wx.BoxSizer(wx.HORIZONTAL)
+        self.dirNameBrowse = DirBrowseButton(panel,
+                    labelText = 'Directory:',
+                    size = (500, wx.DefaultSize.height),
+                    changeCallback=self.OnDirChange)
+        dir_name_sub_ckbox = wx.CheckBox(panel, label="Incl Sub")
+        dir_name_box.Add(self.dirNameBrowse)
+        dir_name_box.Add(dir_name_sub_ckbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
+        
+        file_dir_box.Add(dir_name_box, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
+ 
+        file_box = wx.BoxSizer(wx.HORIZONTAL)
+        self.fileNameBrowse = FileBrowseButtonWithHistory(panel,
+                    labelText='File:',
+                    size = (300, wx.DefaultSize.height),
+                    changeCallback=self.OnFileChange)
+        file_box.Add(self.fileNameBrowse)
+        file_ext_label = wx.StaticText(panel, -1, label="Extensions:")
+        file_ext_ctl = wx.TextCtrl(panel)
+        file_box.Add(file_ext_label, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
+        file_box.Add(file_ext_ctl, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
+        file_dir_box.Add(file_box, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
+ 
+        pattern_box = wx.BoxSizer(wx.HORIZONTAL)
+        pattern_name_label = wx.StaticText(panel, -1, label="Pattern:")
+        pattern_name_ctl = wx.TextCtrl(panel, size=(300, wx.DefaultSize.height))
+        pattern_box.Add(pattern_name_label, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
+        pattern_box.Add(pattern_name_ctl, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
+        pattern_rex_ckbox = wx.CheckBox(panel, label="RegEx")
+        pattern_box.Add(pattern_rex_ckbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
+        file_dir_box.Add(pattern_box, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
+ 
+        search_box = wx.BoxSizer(wx.HORIZONTAL)
+        search_btn = wx.Button(panel, -1, "Search")
+        search_box.Add(search_btn, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
+        file_dir_box.Add(search_box, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
+        
+        self.Centre()
+        self.Show(True)
+                
+    def OnQuit(self, e):
+        self.Close()
+
+def main():
+    
+    ex = wx.App()
+    FindFile(None)
+    ex.MainLoop()    
+
+
+if __name__ == '__main__':
+    main()
