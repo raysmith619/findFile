@@ -46,7 +46,6 @@ class FindFile(wx.Frame):
         if propFile is None:
             propFile = "FindFile.properties"
         self.propFile = propFile
-        atexit.register(self.propSave, propFile=propFile)   # Save at pgm end
         self.properties = Properties()
         if self.propFile is not None and os.path.exists(self.propFile):
             self.properties.load(open(self.propFile))   
@@ -167,11 +166,14 @@ class FindFile(wx.Frame):
         pattern_box.Add(pattern_label, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
         pattern_box.Add(self.searchPatternCtl, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
         
-        self.isRexPattern = self.getProperty(FindFile.PK_REX_SEARCH_PATTERN, datatype=FindFile.DT_BOOLEAN)
+        isRexPattern = self.getProperty(FindFile.PK_REX_SEARCH_PATTERN, datatype=FindFile.DT_BOOLEAN)
+        if isRexPattern is None:
+            isRexPattern = False
         self.patternRexCkbox = wx.CheckBox(panel, label="RegEx")
+        self.patternRexCkbox.SetValue(isRexPattern)
+        self.OnRexChange(None)
         self.patternRexCkbox.Bind(wx.EVT_CHECKBOX, self.OnRexChange)
         pattern_box.Add(self.patternRexCkbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
-        
         file_dir_box.Add(pattern_box, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
 
         """
@@ -254,14 +256,15 @@ class FindFile(wx.Frame):
         self.displayFoundCtrl = wx.TextCtrl(panel,
                     style=wx.TE_READONLY|wx.TE_MULTILINE|wx.TE_DONTWRAP|wx.TE_RICH,
                     size = (wx.DefaultSize.width, 500)
-)
+                    )
         
         display_region_box.Add(self.displayFoundCtrl, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
         file_dir_box.Add(display_region_box, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
         
         self.Centre()
         self.Show(True)
-        
+        atexit.register(self.propSave, propFile=self.propFile)   # Save at pgm end
+
     
     def search(self):
         """
@@ -275,6 +278,8 @@ class FindFile(wx.Frame):
             5. Traverse files for pattern, if specified
         """
         self.propertiesUpdate();      # Enforce updating and recording latest values
+        self.foundTextStyle = self.displayFoundCtrl.GetDefaultStyle()
+
         if not self.isKeepPreviousFound:
             self.displayFoundCtrl.Clear()   # Clear previous found display
                     
@@ -355,6 +360,7 @@ class FindFile(wx.Frame):
             self.displayFoundCtrl.AppendText("\nfiles:%s%s\n" % (prefix, prefix.join(file_list)))
 
         if self.searchPattern is not None:
+
             """ Pattern length is changed for regular expression """
             pat_found_len = len(self.searchPattern)
             if self.isRexPattern:
@@ -363,7 +369,7 @@ class FindFile(wx.Frame):
             prev_dir = None         # last displayed directory
             for file in file_list:
                 dir = os.path.dirname(file)
-                with open(file) as fin:
+                with open(file, mode='rt') as fin:
                     """ TBD multi line  patterns """
                     for line in fin:
                         found_i = end_i = -1        # also Used as found flag
@@ -376,9 +382,9 @@ class FindFile(wx.Frame):
                                 
                         else:
                             found_i = line.find(self.searchPattern)
-                            if found_i > 0:
+                            if found_i >= 0:
                                 end_i = found_i + pat_found_len
-                        if found_i > 0:
+                        if found_i >= 0:
                             if self.isDisplayDirs:
                                 if prev_dir is None or dir != prev_dir:
                                     self.displayFoundTextDir("\n" +dir + "\n")
@@ -397,7 +403,13 @@ class FindFile(wx.Frame):
         """
         Present in the current (default) style
         """
+        ###saved_style = self.displayFoundCtrl.GetDefaultStyle()
+        saved_style = self.displayFoundCtrl.GetDefaultStyle()
+        new_style = self.displayFoundCtrl.GetDefaultStyle()
+        new_style.SetTextColour(wx.BLACK)                   # Don't know why this is needed???
+        self.displayFoundCtrl.SetDefaultStyle(new_style)    # Return to current style
         self.displayFoundCtrl.AppendText(text)
+        self.displayFoundCtrl.SetDefaultStyle(saved_style)    # Return to current style
                                 
  
     def displayFoundTextDir(self, text):
@@ -408,7 +420,7 @@ class FindFile(wx.Frame):
         new_style = self.displayFoundCtrl.GetDefaultStyle()
         new_style.SetTextColour(wx.BLUE)
         self.displayFoundCtrl.SetDefaultStyle(new_style)
-        self.displayFoundText(text)
+        self.displayFoundCtrl.AppendText(text)
         self.displayFoundCtrl.SetDefaultStyle(saved_style)    # Return to current style
                                  
  
@@ -420,7 +432,7 @@ class FindFile(wx.Frame):
         new_style = self.displayFoundCtrl.GetDefaultStyle()
         new_style.SetTextColour(wx.GREEN)
         self.displayFoundCtrl.SetDefaultStyle(new_style)
-        self.displayFoundText(text)
+        self.displayFoundCtrl.AppendText(text)
         self.displayFoundCtrl.SetDefaultStyle(saved_style)    # Return to current style
                                  
  
@@ -432,7 +444,7 @@ class FindFile(wx.Frame):
         new_style = self.displayFoundCtrl.GetDefaultStyle()
         new_style.SetTextColour(wx.RED)
         self.displayFoundCtrl.SetDefaultStyle(new_style)
-        self.displayFoundText(text)
+        self.displayFoundCtrl.AppendText(text)
         
         self.displayFoundCtrl.SetDefaultStyle(saved_style)    # Return to current style
        
@@ -457,11 +469,11 @@ class FindFile(wx.Frame):
         self.setProperty(FindFile.PK_INCL_SUB_DIR, self.isInclSubDir)
 
     def OnDirChange(self, e):
-        self.dirName = self.dirNameBrowse.GetValue()
-        self.dirHistoryList = self.dirNameBrowse.GetHistory()
-        self.setProperty(FindFile.PK_DIR_HISTORY, ";".join(self.dirHistoryList))
-        self.dirNameBrowse.startDirectory = self.dirName
         if hasattr(self, "fileNameBrowse"):
+            self.dirName = self.dirNameBrowse.GetValue()
+            self.dirHistoryList = self.dirNameBrowse.GetHistory()
+            self.setProperty(FindFile.PK_DIR_HISTORY, ";".join(self.dirHistoryList))
+            self.dirNameBrowse.startDirectory = self.dirName
             self.fileNameBrowse.startDirectory = self.dirName
             self.setProperty(FindFile.PK_DIR_START, self.dirName)
             self.fileNameBrowse.SetValue("", callBack=0)
