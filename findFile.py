@@ -15,12 +15,12 @@ from docutils.nodes import line
 
 
 class FindFile(wx.Frame):
-    """
-    properties key names:
-    """
+    
+    """ properties key names: """
     PK_DIR_START = 'dirNameStart'
     PK_DIR_HISTORY = 'dirNameHistory'       # Directories separated by ";"
     PK_FILE_NAME = 'fileName'
+    PK_FILE_HISTORY = 'fileNameHistory'       # files separated by ";"
     PK_EXT_NAME = 'extensionName'
     PK_NOT_EXT = 'notExtensionName'
     PK_INCL_SUB_DIR = 'inclSubDir'
@@ -68,33 +68,37 @@ class FindFile(wx.Frame):
         menubar.Append(fileMenu, '&File')
         self.SetMenuBar(menubar)
         
-        self.Bind(wx.EVT_MENU, self.OnQuit, fitem)
+        self.Bind(wx.EVT_MENU, self.onQuit, fitem)
         self.SetSize((600, 500))
         self.SetTitle('FindFile')
         panel = wx.Panel(self)
         
         file_dir_box = wx.BoxSizer(wx.VERTICAL)
         panel.SetSizer(file_dir_box)
-        self.startDirectory = None
-        self.dirName  = self.getProperty(FindFile.PK_DIR_START)
-        initialValue = self.dirName
-        if self.dirName is None:
-            self.dirName = "."
-            initialValue = ""
-        dir_history  = self.getProperty(FindFile.PK_DIR_HISTORY)
+        
+        """ Directory Selection """
         self.dirHistoryList = []
+        start_directory = self.getProperty(FindFile.PK_DIR_START)
+        dir_history  = self.getProperty(FindFile.PK_DIR_HISTORY)
         if dir_history is not None:
             self.dirHistoryList = dir_history.split(';')
-                 
+        if start_directory is None:
+            if len(self.dirHistoryList) > 0:
+                start_directory = self.dirHistoryList[0]
+            else:
+                start_directory = "."
+        if len(self.dirHistoryList) == 0:
+            self.dirHistoryList.append(start_directory)
+                    
         dir_name_box = wx.BoxSizer(wx.HORIZONTAL)
         self.dirNameBrowse = DirBrowseButtonWithHistory(panel,
                     labelText = 'Directory:',
                     history = self.dirHistoryList,
                     size = (500, wx.DefaultSize.height),
-                    startDirectory = self.dirName,
-                    initialValue = initialValue,
-                    changeCallback=self.OnDirChange)
-        self.OnDirChange(None)      # Force full update
+                    startDirectory = start_directory,
+                    initialValue = start_directory,
+                    changeCallback=self.onDirChange)
+        self.onDirChange(None)      # Force full update
         
         isInclSubDir = self.getProperty(FindFile.PK_INCL_SUB_DIR, datatype=FindFile.DT_BOOLEAN)
         if isInclSubDir is None:
@@ -102,7 +106,7 @@ class FindFile(wx.Frame):
         self.isInclSubDir = isInclSubDir
         self.isInclSubDirCkbox = wx.CheckBox(panel, label="Incl Sub")
         self.isInclSubDirCkbox.SetValue(self.isInclSubDir)        # Don't know why the constructor shows no value=
-        self.isInclSubDirCkbox.Bind(wx.EVT_CHECKBOX, self.OnInclSubChange)
+        self.isInclSubDirCkbox.Bind(wx.EVT_CHECKBOX, self.onInclSubChange)
         
         dir_name_box.Add(self.dirNameBrowse)
         dir_name_box.Add(self.isInclSubDirCkbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
@@ -115,23 +119,35 @@ class FindFile(wx.Frame):
         self.fileExtList = []                      # Array of file extensions (without ".")
         self.extName = self.getProperty(FindFile.PK_EXT_NAME)
         initial_ext_name = self.extName
-        
-        if self.fileName is None:
-            initial_file_name = ""
-        if self.extName is None:
-            initial_ext_name = ""
+            
+            
+        """ File Name Selection """
+        self.fileHistoryList = []
+        file_name = self.getProperty(FindFile.PK_FILE_NAME)
+        file_history  = self.getProperty(FindFile.PK_FILE_HISTORY)
+        if file_history is not None:
+            self.fileHistoryList = file_history.split(';')
+        if file_name is None:
+            if len(self.fileHistoryList) > 0:
+                file_name = self.fileHistoryList[0]
+        if len(self.fileHistoryList) == 0 and file_name is not None:
+            self.dirHistoryList.append(file_name)
+            
                 
         file_box = wx.BoxSizer(wx.HORIZONTAL)
         self.fileNameBrowse = FileBrowseButtonWithHistory(panel,
                     labelText='File:',
                     size = (300, wx.DefaultSize.height),
                     startDirectory = self.dirName,
-                    initialValue = initial_file_name)
+                    initialValue = file_name,
+                    changeCallback=self.onFileChange)
+        self.onFileChange(None)
+        
         file_box.Add(self.fileNameBrowse)
         file_ext_label = wx.StaticText(panel, -1, label="Extensions:")
         self.fileExtCtl = wx.TextCtrl(panel, value=initial_ext_name, style=wx.TE_PROCESS_ENTER)
-        self.OnExtChange(None)      # Setup list
-        self.fileExtCtl.Bind(wx.EVT_TEXT_ENTER, self.OnExtChange)
+        self.onExtChange(None)      # Setup list
+        self.fileExtCtl.Bind(wx.EVT_TEXT_ENTER, self.onExtChange)
         file_box.Add(file_ext_label, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
         file_box.Add(self.fileExtCtl, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
         
@@ -141,16 +157,14 @@ class FindFile(wx.Frame):
             isNotExt = False
         self.isNotExtCkbox = wx.CheckBox(panel, label="Except")
         self.isNotExtCkbox.SetValue(isNotExt)   # Don't know why the constructor shows no value=
-        self.OnNotExtChange(None)           # Set via change function
-        self.isNotExtCkbox.Bind(wx.EVT_CHECKBOX, self.OnNotExtChange)
+        self.onNotExtChange(None)           # Set via change function
+        self.isNotExtCkbox.Bind(wx.EVT_CHECKBOX, self.onNotExtChange)
         file_box.Add(self.isNotExtCkbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
         
         
         file_dir_box.Add(file_box, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
 
-        """
-        Text Pattern Selection
-        """ 
+        """ Text Pattern Selection """ 
         pattern_box = wx.BoxSizer(wx.HORIZONTAL)
         pattern_label = wx.StaticText(panel, -1, label="Pattern:")
 
@@ -161,7 +175,7 @@ class FindFile(wx.Frame):
             searchPattern = ""
         self.searchPatternCtl = wx.TextCtrl(panel, size=(300, wx.DefaultSize.height),
                                     value=searchPattern, style=wx.TE_PROCESS_ENTER)
-        self.searchPatternCtl.Bind(wx.EVT_TEXT_ENTER, self.OnPatternChange)
+        self.searchPatternCtl.Bind(wx.EVT_TEXT_ENTER, self.onPatternChange)
         
         pattern_box.Add(pattern_label, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
         pattern_box.Add(self.searchPatternCtl, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
@@ -171,14 +185,12 @@ class FindFile(wx.Frame):
             isRexPattern = False
         self.patternRexCkbox = wx.CheckBox(panel, label="RegEx")
         self.patternRexCkbox.SetValue(isRexPattern)
-        self.OnRexChange(None)
-        self.patternRexCkbox.Bind(wx.EVT_CHECKBOX, self.OnRexChange)
+        self.onRexChange(None)
+        self.patternRexCkbox.Bind(wx.EVT_CHECKBOX, self.onRexChange)
         pattern_box.Add(self.patternRexCkbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
         file_dir_box.Add(pattern_box, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
 
-        """
-        Display controls
-        """
+        """ Display controls """
         display_controlling_box = wx.BoxSizer(wx.VERTICAL)
         display_controlling_box_label = wx.StaticText(panel, -1, label="Display Control", style=wx.ALIGN_CENTER)
         display_controlling_box.Add(display_controlling_box_label, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
@@ -186,16 +198,14 @@ class FindFile(wx.Frame):
         display_controlling_box.Add(display_control_box, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
         file_dir_box.Add(display_controlling_box, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
         
-        """
-        Display selections
-        """
+        """ Display selections """
         isDisplayDirList = self.getProperty(FindFile.PK_DISPLAY_DIR_LIST, datatype=FindFile.DT_BOOLEAN)
         if isDisplayDirList is None:
             isDisplayDirList = False
         self.isDisplayDirListCkbox = wx.CheckBox(panel, label="DirList")
         self.isDisplayDirListCkbox.SetValue(isDisplayDirList)   # Don't know why the constructor shows no value=
-        self.OnDisplayDirListChange(None)           # Set via change function
-        self.isDisplayDirListCkbox.Bind(wx.EVT_CHECKBOX, self.OnDisplayDirListChange)
+        self.onDisplayDirListChange(None)           # Set via change function
+        self.isDisplayDirListCkbox.Bind(wx.EVT_CHECKBOX, self.onDisplayDirListChange)
         display_control_box.Add(self.isDisplayDirListCkbox)
         
         isDisplayDirs = self.getProperty(FindFile.PK_DISPLAY_DIRS, datatype=FindFile.DT_BOOLEAN)
@@ -203,8 +213,8 @@ class FindFile(wx.Frame):
             isDisplayDirs = False
         self.isDisplayDirsCkbox = wx.CheckBox(panel, label="Dirs")
         self.isDisplayDirsCkbox.SetValue(isDisplayDirs)   # Don't know why the constructor shows no value=
-        self.OnDisplayDirsChange(None)           # Set via change function
-        self.isDisplayDirsCkbox.Bind(wx.EVT_CHECKBOX, self.OnDisplayDirsChange)
+        self.onDisplayDirsChange(None)           # Set via change function
+        self.isDisplayDirsCkbox.Bind(wx.EVT_CHECKBOX, self.onDisplayDirsChange)
         display_control_box.Add(self.isDisplayDirsCkbox)
         
         isDisplayFileList = self.getProperty(FindFile.PK_DISPLAY_FILE_LIST, datatype=FindFile.DT_BOOLEAN)
@@ -212,8 +222,8 @@ class FindFile(wx.Frame):
             isDisplayFileList = False
         self.isDisplayFileListCkbox = wx.CheckBox(panel, label="FileList")
         self.isDisplayFileListCkbox.SetValue(isDisplayFileList)   # Don't know why the constructor shows no value=
-        self.OnDisplayFileListChange(None)           # Set via change function
-        self.isDisplayFileListCkbox.Bind(wx.EVT_CHECKBOX, self.OnDisplayFileListChange)
+        self.onDisplayFileListChange(None)           # Set via change function
+        self.isDisplayFileListCkbox.Bind(wx.EVT_CHECKBOX, self.onDisplayFileListChange)
         display_control_box.Add(self.isDisplayFileListCkbox)
         
         isDisplayFiles = self.getProperty(FindFile.PK_DISPLAY_FILES, datatype=FindFile.DT_BOOLEAN)
@@ -221,16 +231,14 @@ class FindFile(wx.Frame):
             isDisplayFiles = False
         self.isDisplayFilesCkbox = wx.CheckBox(panel, label="Files")
         self.isDisplayFilesCkbox.SetValue(isDisplayFiles)   # Don't know why the constructor shows no value=
-        self.OnDisplayFilesChange(None)           # Set via change function
-        self.isDisplayFilesCkbox.Bind(wx.EVT_CHECKBOX, self.OnDisplayFilesChange)
+        self.onDisplayFilesChange(None)           # Set via change function
+        self.isDisplayFilesCkbox.Bind(wx.EVT_CHECKBOX, self.onDisplayFilesChange)
         display_control_box.Add(self.isDisplayFilesCkbox)
 
-        """
-        Search Control
-        """
+        """ Search Control """
         search_box = wx.BoxSizer(wx.HORIZONTAL)
         self.searchBtn = wx.Button(panel, -1, "Search")
-        self.searchBtn.Bind(wx.EVT_BUTTON, self.OnSearch)
+        self.searchBtn.Bind(wx.EVT_BUTTON, self.onSearch)
         search_box.Add(self.searchBtn, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
         
         isKeepPreviousFound = self.getProperty(FindFile.PK_KEEP_PREVIOUS_FOUND, datatype=FindFile.DT_BOOLEAN)
@@ -238,8 +246,8 @@ class FindFile(wx.Frame):
             isKeepPreviousFound = False
         self.isKeepPreviousFoundCkbox = wx.CheckBox(panel, label="Keep Previous")
         self.isKeepPreviousFoundCkbox.SetValue(isKeepPreviousFound)   # Don't know why the constructor shows no value=
-        self.OnKeepPreviousFoundChange(None)           # Set via change function
-        self.isKeepPreviousFoundCkbox.Bind(wx.EVT_CHECKBOX, self.OnKeepPreviousFoundChange)
+        self.onKeepPreviousFoundChange(None)           # Set via change function
+        self.isKeepPreviousFoundCkbox.Bind(wx.EVT_CHECKBOX, self.onKeepPreviousFoundChange)
         search_box.Add(self.isKeepPreviousFoundCkbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
         
         
@@ -247,9 +255,7 @@ class FindFile(wx.Frame):
         file_dir_box.Add(search_box, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
         
 
-        """
-        Found Items Display Area
-        """
+        """ Found Items Display Area """
         display_region_box = wx.BoxSizer(wx.VERTICAL)
         display_region_label = wx.StaticText(panel, -1, label="Found", style=wx.ALIGN_CENTER)
         display_region_box.Add(display_region_label, 0,  wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL, 5)
@@ -299,9 +305,10 @@ class FindFile(wx.Frame):
                collect files with each extension in each directory
         """
         dir_list = []       # Directories of interest
+        if dirName is not None:
+            dir_list.append(dirName)
         if fileName is None or fileName == '':
             fileName = None                     # Treat all the same
-            dir_list.append(dirName)
         elif os.path.isabs(fileName):
             fileName = os.path.basename(fileName)
             dir_list.append(os.path.dirname(fileName))
@@ -322,81 +329,82 @@ class FindFile(wx.Frame):
         if fileName is not None:
             file_base, file_ext = os.path.splitext(fileName)
             search_file_names = [file_base]
-            search_file_exts = [file_ext]
-        else:
+            if file_ext is not None and file_ext != '':
+                search_file_exts = [file_ext]       # Use given extension
+        if len(search_file_exts) == 0:      # If none in file name, add any in list
             for search_file_ext in self.fileExtList:
                 if not search_file_ext.startswith("."):
                     search_file_ext = "." + search_file_ext     # add leading "."
                 search_file_exts.append(search_file_ext)
-                
+
+        files = []                
         for dir in dir_list:
-            for rt, dirs, fls in os.walk(dir):      # Just get first one
+            for rt, dirs, fls in os.walk(dir):
                 root = rt
                 files = fls
-                break
                 
-            for file in files:
-                file_name, file_ext = os.path.splitext(file)
-                match_name = False
-                match_ext = False
-                if len(search_file_list) == 0:
-                    match_name = True       # All files
-                else:
-                    for s_file_name in search_file_names:
-                        if file_name == s_file_name:
-                            match_name = True
-                            break
-                if len(search_file_exts) == 0:
-                    match_ext = True
-                else:
-                    for s_file_ext in search_file_exts:
-                        if s_file_ext == file_ext:
-                            match_ext = True
-                            break
-                if match_name and match_ext:
-                    file_list.append(os.path.join(root, file))
-        if self.isDisplayFileList:
-            prefix = "\n     "
-            self.displayFoundCtrl.AppendText("\nfiles:%s%s\n" % (prefix, prefix.join(file_list)))
-
-        if self.searchPattern is not None:
-
-            """ Pattern length is changed for regular expression """
-            pat_found_len = len(self.searchPattern)
-            if self.isRexPattern:
-                re_pat = re.compile(self.searchPattern)
-            prev_file = None        # last displayed file
-            prev_dir = None         # last displayed directory
-            for file in file_list:
-                dir = os.path.dirname(file)
-                with open(file, mode='rt') as fin:
-                    """ TBD multi line  patterns """
-                    for line in fin:
-                        found_i = end_i = -1        # also Used as found flag
-                        if self.isRexPattern:
-                            match = re.search(re_pat, line)
-                            if match is not None:
-                                (found_i, end_i) = match.span()
-                                pat_found_len = end_i - found_i
-                                
-                                
-                        else:
-                            found_i = line.find(self.searchPattern)
+                for file in files:
+                    file_name, file_ext = os.path.splitext(file)
+                    match_name = False
+                    match_ext = False
+                    if len(search_file_names) == 0:
+                        match_name = True       # All files
+                    else:
+                        for s_file_name in search_file_names:
+                            if file_name == s_file_name:
+                                match_name = True
+                                break
+                    if len(search_file_exts) == 0:
+                        match_ext = True
+                    else:
+                        for s_file_ext in search_file_exts:
+                            if s_file_ext == file_ext:
+                                match_ext = True
+                                break
+                    if match_name and match_ext:
+                        file_list.append(os.path.join(root, file))
+            if self.isDisplayFileList:
+                prefix = "\n     "
+                self.displayFoundCtrl.AppendText("\nfiles:%s%s\n" % (prefix, prefix.join(file_list)))
+    
+            if self.searchPattern is not None:
+    
+                """ Pattern length is changed for regular expression """
+                pat_found_len = len(self.searchPattern)
+                if self.isRexPattern:
+                    re_pat = re.compile(self.searchPattern)
+                prev_file = None        # last displayed file
+                prev_dir = None         # last displayed directory
+                for file in file_list:
+                    dir = os.path.dirname(file)
+                    with open(file, mode='rt') as fin:
+                        """ TBD multi line  patterns """
+                        for line in fin:
+                            found_i = end_i = -1        # also Used as found flag
+                            if self.isRexPattern:
+                                match = re.search(re_pat, line)
+                                if match is not None:
+                                    (found_i, end_i) = match.span()
+                                    pat_found_len = end_i - found_i
+                                    
+                                    
+                            else:
+                                found_i = line.find(self.searchPattern)
+                                if found_i >= 0:
+                                    end_i = found_i + pat_found_len
                             if found_i >= 0:
-                                end_i = found_i + pat_found_len
-                        if found_i >= 0:
-                            if self.isDisplayDirs:
-                                if prev_dir is None or dir != prev_dir:
-                                    self.displayFoundTextDir("\n" +dir + "\n")
-                                    prev_dir = dir
-                            if self.isDisplayFiles:
-                                if prev_file is None or file != prev_file:
-                                    prev_file = file
-                                    self.displayFoundTextFile(os.path.basename(file) + "\n")
-                                
-                            self.displayFoundText(line[0:found_i])  # before match
-                            self.displayFoundTextMatch(line[found_i:end_i])  # match
-                            self.displayFoundText(line[end_i:])  # after macth
+                                if self.isDisplayDirs:
+                                    if prev_dir is None or dir != prev_dir:
+                                        self.displayFoundTextDir("\n" +dir + "\n")
+                                        prev_dir = dir
+                                if self.isDisplayFiles:
+                                    if prev_file is None or file != prev_file:
+                                        prev_file = file
+                                        self.displayFoundTextFile(os.path.basename(file) + "\n")
+                                    
+                                self.displayFoundText(line[0:found_i])  # before match
+                                self.displayFoundTextMatch(line[found_i:end_i])  # match
+                                self.displayFoundText(line[end_i:])  # after macth
                                 
  
     def displayFoundText(self, text):
@@ -452,85 +460,97 @@ class FindFile(wx.Frame):
         
         
            
-    def OnExtChange(self, e):
+    def onExtChange(self, e):
         new_ext = self.fileExtCtl.GetLineText(0)
         self.extName = new_ext
         self.setProperty(FindFile.PK_EXT_NAME, new_ext)
         self.fileExtList = new_ext.split(";")
     
     
-    def OnNotExtChange(self, e):
+    def onNotExtChange(self, e):
         self.isNotExt = self.isNotExtCkbox.IsChecked()
         self.setProperty(FindFile.PK_NOT_EXT, self.isNotExt)
     
     
-    def OnInclSubChange(self, e):
+    def onInclSubChange(self, e):
         self.isInclSubDir = self.isInclSubDirCkbox.GetValue()
         self.setProperty(FindFile.PK_INCL_SUB_DIR, self.isInclSubDir)
 
-    def OnDirChange(self, e):
+    def onDirChange(self, e):
+        if not hasattr(self, "dirNameBrowse"):
+            return                  ### setup not complete
+        
+        self.dirName = self.dirNameBrowse.GetValue()
+        self.dirNameBrowse.startDirectory = self.dirName
+        self.setProperty(FindFile.PK_DIR_START, self.dirName)
+        self.dirHistoryList = self.dirNameBrowse.GetHistory()
+        self.setProperty(FindFile.PK_DIR_HISTORY, ";".join(self.dirHistoryList))
         if hasattr(self, "fileNameBrowse"):
-            self.dirName = self.dirNameBrowse.GetValue()
-            self.dirHistoryList = self.dirNameBrowse.GetHistory()
-            self.setProperty(FindFile.PK_DIR_HISTORY, ";".join(self.dirHistoryList))
-            self.dirNameBrowse.startDirectory = self.dirName
             self.fileNameBrowse.startDirectory = self.dirName
-            self.setProperty(FindFile.PK_DIR_START, self.dirName)
-            self.fileNameBrowse.SetValue("", callBack=0)
-        ### print("OnDirChange: self.dirName = %s %s" % (self.dirName, self.dirNameBrowse.GetValue()))
+        ### print("onDirChange: self.dirName = %s %s" % (self.dirName, self.dirNameBrowse.GetValue()))
 
-    def OnPatternChange(self, e):
+    def onPatternChange(self, e):
         self.searchPattern = self.searchPatternCtl.GetValue()
         self.setProperty(FindFile.PK_SEARCH_PATTERN, self.searchPattern)
 
-    def OnRexChange(self, e):
+    def onRexChange(self, e):
         self.isRexPattern = self.patternRexCkbox.IsChecked()
         self.setProperty(FindFile.PK_REX_SEARCH_PATTERN, self.isRexPattern)
         
 
-    def OnFileChange(self, e):
+    def onFileChange(self, e):
         file_path = self.fileNameBrowse.GetValue()
-        if not os.path.isabs(file_path):
-            ###print("file_path %s is not absolute - disregard" % file_path)
-            return
-        
-        self.dirName = os.path.dirname(file_path)
-        file_name = os.path.basename(file_path)
+        if os.path.isabs(file_path):
+            self.dirName = os.path.dirname(file_path)
+            file_name = os.path.basename(file_path)
+            file_name_history = self.fileNameBrowse.GetHistory()
+            if file_name not in file_name_history:
+                file_name_history.append(file_name)
+                self.fileHistoryList = file_name_history
+                self.setProperty(FindFile.PK_FILE_HISTORY, ";".join(self.fileHistoryList))
+                
+            
+            self.dirNameBrowse.startDirectory = self.dirName
+            self.setProperty(FindFile.PK_DIR_START, self.dirName)
+            self.dirNameBrowse.SetValue(self.dirName, callBack=0)
+            self.fileNameBrowse.startDirectory = self.dirName
+        else:
+            file_name = file_path
+        self.fileName = file_name
         self.fileNameBrowse.SetValue(file_name, callBack=0)
-        self.dirNameBrowse.startDirectory = self.dirName
-        self.setProperty(FindFile.PK_DIR_START, self.dirName)
-        self.dirNameBrowse.SetValue(self.dirName, callBack=0)
-        self.fileNameBrowse.startDirectory = self.dirName
-        print("OnFileChange: self.dirName = %s %s" % (self.dirName, self.dirNameBrowse.GetValue()))
+        self.setProperty(FindFile.PK_FILE_NAME, self.fileName)
+        self.fileHistoryList = self.fileNameBrowse.GetHistory()
+        self.setProperty(FindFile.PK_FILE_HISTORY, ";".join(self.fileHistoryList))
+        print("onFileChange: dir=%s file=%s" % (self.dirName, self.fileName))
     
     
-    def OnDisplayDirListChange(self, e):
+    def onDisplayDirListChange(self, e):
         self.isDisplayDirList = self.isDisplayDirListCkbox.IsChecked()
         self.setProperty(FindFile.PK_DISPLAY_DIR_LIST, self.isDisplayDirList)
     
     
-    def OnDisplayDirsChange(self, e):
+    def onDisplayDirsChange(self, e):
         self.isDisplayDirs = self.isDisplayDirsCkbox.IsChecked()
         self.setProperty(FindFile.PK_DISPLAY_DIRS, self.isDisplayDirs)
     
     
-    def OnDisplayFileListChange(self, e):
+    def onDisplayFileListChange(self, e):
         self.isDisplayFileList = self.isDisplayFileListCkbox.IsChecked()
         self.setProperty(FindFile.PK_DISPLAY_FILE_LIST, self.isDisplayFileList)
    
     
-    def OnDisplayFilesChange(self, e):
+    def onDisplayFilesChange(self, e):
         self.isDisplayFiles = self.isDisplayFilesCkbox.IsChecked()
         self.setProperty(FindFile.PK_DISPLAY_FILES, self.isDisplayFiles)
 
    
     
-    def OnKeepPreviousFoundChange(self, e):
+    def onKeepPreviousFoundChange(self, e):
         self.isKeepPreviousFound = self.isKeepPreviousFoundCkbox.IsChecked()
         self.setProperty(FindFile.PK_KEEP_PREVIOUS_FOUND, self.isKeepPreviousFound)
         
     
-    def OnSearch(self, e):
+    def onSearch(self, e):
         self.search()
         
     
@@ -573,22 +593,22 @@ class FindFile(wx.Frame):
 
     def propertiesUpdate(self, end=False):
         if not end:
-            self.OnDirChange(None)
-            self.OnFileChange(None)
-            self.OnInclSubChange(None)
-            self.OnExtChange(None)
-            self.OnPatternChange(None)
-            self.OnRexChange(None)
-            self.OnDisplayDirListChange(None)
-            self.OnDisplayDirsChange(None)
-            self.OnDisplayFileListChange(None)
-            self.OnDisplayFilesChange(None)
-            self.OnNotExtChange(None)
-            self.OnKeepPreviousFoundChange(None)
+            self.onDirChange(None)
+            self.onFileChange(None)
+            self.onInclSubChange(None)
+            self.onExtChange(None)
+            self.onPatternChange(None)
+            self.onRexChange(None)
+            self.onDisplayDirListChange(None)
+            self.onDisplayDirsChange(None)
+            self.onDisplayFileListChange(None)
+            self.onDisplayFilesChange(None)
+            self.onNotExtChange(None)
+            self.onKeepPreviousFoundChange(None)
 
             
                         
-    def OnQuit(self, e):
+    def onQuit(self, e):
         self.Close()
         
 def main():
